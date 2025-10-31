@@ -1,0 +1,203 @@
+# OpenWrt DHCP Configuration
+# File: /etc/config/dhcp
+#
+# This configures DHCP servers for each VLAN
+
+config dnsmasq
+    option domainneeded '1'
+    option boguspriv '1'
+    option filterwin2k '0'
+    option localise_queries '1'
+    option rebind_protection '1'
+    option rebind_localhost '1'
+    option local '/homesec.local/'
+    option domain 'homesec.local'
+    option expandhosts '1'
+    option nonegcache '0'
+    option authoritative '1'
+    option readethers '1'
+    option leasefile '/tmp/dhcp.leases'
+    option resolvfile '/tmp/resolv.conf.d/resolv.conf.auto'
+    option nonwildcard '1'
+    option localservice '1'
+    option ednspacket_max '1232'
+    option filter_aaaa '0'
+    option filter_a '0'
+
+config dhcp 'lan'
+    option interface 'lan'
+    option start '100'
+    option limit '150'
+    option leasetime '12h'
+    option dhcpv4 'server'
+    option dhcpv6 'server'
+    option ra 'server'
+    option ra_slaac '1'
+    list ra_flags 'managed-config'
+    list ra_flags 'other-config'
+
+# VLAN 10 - Trusted LAN
+config dhcp 'trusted'
+    option interface 'trusted'
+    option start '100'
+    option limit '150'
+    option leasetime '12h'
+    list dhcp_option '6,192.168.20.53,1.1.1.1'  # DNS servers
+    list dhcp_option '3,192.168.10.1'  # Gateway
+
+# VLAN 20 - Infrastructure (mostly static IPs, small DHCP pool)
+config dhcp 'infrastructure'
+    option interface 'infrastructure'
+    option start '100'
+    option limit '50'
+    option leasetime '24h'
+    list dhcp_option '6,192.168.20.53,1.1.1.1'
+    list dhcp_option '3,192.168.20.1'
+
+# VLAN 30 - IoT/Guest
+config dhcp 'iot'
+    option interface 'iot'
+    option start '100'
+    option limit '150'
+    option leasetime '4h'  # Shorter lease for guests
+    list dhcp_option '6,192.168.20.53,1.1.1.1'
+    list dhcp_option '3,192.168.30.1'
+
+# VLAN 40 - Lab VMs
+config dhcp 'lab'
+    option interface 'lab'
+    option start '100'
+    option limit '100'
+    option leasetime '12h'
+    list dhcp_option '6,192.168.20.53,1.1.1.1'
+    list dhcp_option '3,192.168.40.1'
+
+# VLAN 99 - Honeypot DMZ (no DHCP, static IP only)
+config dhcp 'honeypot'
+    option interface 'honeypot'
+    option ignore '1'
+
+# VPN (WireGuard) - no DHCP needed, static assignment in peer config
+config dhcp 'vpn'
+    option interface 'vpn'
+    option ignore '1'
+
+# ============================================================================
+# STATIC DHCP ASSIGNMENTS
+# ============================================================================
+
+# CentOS Server
+config host
+    option name 'server'
+    option dns '1'
+    option mac 'XX:XX:XX:XX:XX:XX'  # Replace with actual MAC
+    option ip '192.168.20.10'
+
+# HP Switch
+config host
+    option name 'switch'
+    option dns '1'
+    option mac 'YY:YY:YY:YY:YY:YY'  # Replace with actual MAC
+    option ip '192.168.20.11'
+
+# Rock Pi 4 SE (IDS)
+config host
+    option name 'ids'
+    option dns '1'
+    option mac 'ZZ:ZZ:ZZ:ZZ:ZZ:ZZ'  # Replace with actual MAC
+    option ip '192.168.20.20'
+
+# WiFi Access Points
+config host
+    option name 'ap1'
+    option dns '1'
+    option mac 'AA:AA:AA:AA:AA:01'
+    option ip '192.168.30.10'
+
+config host
+    option name 'ap2'
+    option dns '1'
+    option mac 'AA:AA:AA:AA:AA:02'
+    option ip '192.168.30.11'
+
+config host
+    option name 'ap3'
+    option dns '1'
+    option mac 'AA:AA:AA:AA:AA:03'
+    option ip '192.168.30.12'
+
+config host
+    option name 'ap4'
+    option dns '1'
+    option mac 'AA:AA:AA:AA:AA:04'
+    option ip '192.168.30.13'
+
+config host
+    option name 'ap5'
+    option dns '1'
+    option mac 'AA:AA:AA:AA:AA:05'
+    option ip '192.168.30.14'
+
+config host
+    option name 'ap6'
+    option dns '1'
+    option mac 'AA:AA:AA:AA:AA:06'
+    option ip '192.168.30.15'
+
+# T-Pot Honeypot VM
+config host
+    option name 'tpot'
+    option dns '1'
+    option mac 'BB:BB:BB:BB:BB:BB'  # Replace with actual MAC
+    option ip '192.168.99.10'
+
+# ============================================================================
+# DNS FORWARDING
+# ============================================================================
+
+# Forward DNS queries to BIND server first, then Cloudflare
+config dnsmasq
+    list server '/homesec.local/192.168.20.53'
+    list server '192.168.20.53'
+    list server '1.1.1.1'
+    list server '1.0.0.1'
+
+# ============================================================================
+# DOMAIN OVERRIDES (for local DNS)
+# ============================================================================
+
+config domain
+    option name 'server.homesec.local'
+    option ip '192.168.20.10'
+
+config domain
+    option name 'dns.homesec.local'
+    option ip '192.168.20.53'
+
+config domain
+    option name 'nas.homesec.local'
+    option ip '192.168.20.10'
+
+config domain
+    option name 'kibana.homesec.local'
+    option ip '192.168.20.10'
+
+config domain
+    option name 'elk.homesec.local'
+    option ip '192.168.20.10'
+
+config domain
+    option name 'switch.homesec.local'
+    option ip '192.168.20.11'
+
+config domain
+    option name 'router.homesec.local'
+    option ip '192.168.20.1'
+
+config domain
+    option name 'ids.homesec.local'
+    option ip '192.168.20.20'
+
+config domain
+    option name 'tpot.homesec.local'
+    option ip '192.168.99.10'

@@ -1,0 +1,153 @@
+# HomeSec ELK Stack - Podman Compose
+# Elasticsearch + Kibana + Logstash (optional)
+#
+# Usage:
+#   podman-compose up -d
+#   podman-compose down
+#   podman-compose logs -f
+
+version: '3.8'
+
+networks:
+  elk:
+    driver: bridge
+
+volumes:
+  elasticsearch-data:
+    driver: local
+  kibana-data:
+    driver: local
+  logstash-data:
+    driver: local
+
+services:
+  # ============================================================================
+  # Elasticsearch - Data storage and search
+  # ============================================================================
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: elasticsearch
+    hostname: elasticsearch
+    restart: unless-stopped
+
+    environment:
+      # Cluster settings
+      - node.name=homesec-es-01
+      - cluster.name=homesec-cluster
+      - discovery.type=single-node
+
+      # Memory settings (adjust based on available RAM)
+      - "ES_JAVA_OPTS=-Xms4g -Xmx4g"
+      - bootstrap.memory_lock=true
+
+      # Security (disabled for internal network, enable for production)
+      - xpack.security.enabled=false
+      - xpack.security.enrollment.enabled=false
+
+      # Monitoring
+      - xpack.monitoring.collection.enabled=true
+
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+
+    ports:
+      - "9200:9200"  # REST API
+      - "9300:9300"  # Node communication
+
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+      - ./elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro
+
+    networks:
+      - elk
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ============================================================================
+  # Kibana - Visualization and dashboards
+  # ============================================================================
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: kibana
+    hostname: kibana
+    restart: unless-stopped
+
+    environment:
+      - SERVERNAME=kibana.homesec.local
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=elastic
+      # - ELASTICSEARCH_PASSWORD=changeme  # Set if security enabled
+
+      # Server settings
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=5601
+      - SERVER_NAME=HomeSec-Kibana
+
+      # Monitoring
+      - MONITORING_UI_CONTAINER_ELASTICSEARCH_ENABLED=true
+
+    ports:
+      - "443:5601"  # Kibana UI (mapped to 443 for easier access)
+
+    volumes:
+      - kibana-data:/usr/share/kibana/data
+      - ./kibana/config/kibana.yml:/usr/share/kibana/config/kibana.yml:ro
+
+    networks:
+      - elk
+
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # ============================================================================
+  # Logstash - Log processing (optional)
+  # ============================================================================
+  logstash:
+    image: docker.elastic.co/logstash/logstash:8.11.0
+    container_name: logstash
+    hostname: logstash
+    restart: unless-stopped
+
+    environment:
+      - "LS_JAVA_OPTS=-Xms1g -Xmx1g"
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+
+    ports:
+      - "5044:5044"  # Beats input
+      - "5000:5000/tcp"  # TCP input
+      - "5000:5000/udp"  # UDP input
+      - "9600:9600"  # Monitoring API
+
+    volumes:
+      - logstash-data:/usr/share/logstash/data
+      - ./logstash/pipeline:/usr/share/logstash/pipeline:ro
+      - ./logstash/config/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+
+    networks:
+      - elk
+
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9600/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5

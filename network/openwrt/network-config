@@ -1,0 +1,132 @@
+# OpenWrt Network Configuration
+# File: /etc/config/network
+#
+# This configures VLANs, interfaces and IP addressing
+
+config interface 'loopback'
+    option device 'lo'
+    option proto 'static'
+    option ipaddr '127.0.0.1'
+    option netmask '255.0.0.0'
+
+# WAN Interface (Internet)
+config interface 'wan'
+    option device 'eth0'
+    option proto 'dhcp'  # or 'pppoe' depending on ISP
+    option peerdns '0'
+    option dns '1.1.1.1 1.0.0.1'
+
+config interface 'wan6'
+    option device 'eth0'
+    option proto 'dhcpv6'
+
+# LAN Interface (to Rock Pi E eth0)
+# This is the main LAN connection going to IPS bridge
+config interface 'lan'
+    option device 'br-lan'
+    option proto 'static'
+    option ipaddr '192.168.10.1'
+    option netmask '255.255.255.0'
+
+# Bridge for LAN (connects to eth1)
+config device
+    option name 'br-lan'
+    option type 'bridge'
+    list ports 'eth1'
+
+# ============================================================================
+# VLAN INTERFACES
+# ============================================================================
+# Note: These VLANs are tagged on eth1 going to Rock Pi E,
+# which bridges to the HP switch
+
+# VLAN 10 - Trusted LAN
+config interface 'trusted'
+    option proto 'static'
+    option device 'eth1.10'
+    option ipaddr '192.168.10.1'
+    option netmask '255.255.255.0'
+
+config device
+    option name 'eth1.10'
+    option type '8021q'
+    option ifname 'eth1'
+    option vid '10'
+
+# VLAN 20 - Infrastructure
+config interface 'infrastructure'
+    option proto 'static'
+    option device 'eth1.20'
+    option ipaddr '192.168.20.1'
+    option netmask '255.255.255.0'
+
+config device
+    option name 'eth1.20'
+    option type '8021q'
+    option ifname 'eth1'
+    option vid '20'
+
+# VLAN 30 - IoT/Guest
+config interface 'iot'
+    option proto 'static'
+    option device 'eth1.30'
+    option ipaddr '192.168.30.1'
+    option netmask '255.255.255.0'
+
+config device
+    option name 'eth1.30'
+    option type '8021q'
+    option ifname 'eth1'
+    option vid '30'
+
+# VLAN 40 - Lab VMs
+config interface 'lab'
+    option proto 'static'
+    option device 'eth1.40'
+    option ipaddr '192.168.40.1'
+    option netmask '255.255.255.0'
+
+config device
+    option name 'eth1.40'
+    option type '8021q'
+    option ifname 'eth1'
+    option vid '40'
+
+# VLAN 99 - Honeypot DMZ
+config interface 'honeypot'
+    option proto 'static'
+    option device 'eth1.99'
+    option ipaddr '192.168.99.1'
+    option netmask '255.255.255.0'
+
+config device
+    option name 'eth1.99'
+    option type '8021q'
+    option ifname 'eth1'
+    option vid '99'
+
+# ============================================================================
+# WireGuard VPN Interface
+# ============================================================================
+
+config interface 'vpn'
+    option proto 'wireguard'
+    option private_key 'YOUR_PRIVATE_KEY_HERE'
+    option listen_port '51820'
+    list addresses '10.10.100.1/24'
+
+# WireGuard Peers (clients)
+# Add one section per client
+
+config wireguard_vpn
+    option public_key 'CLIENT_PUBLIC_KEY_HERE'
+    option description 'Laptop'
+    list allowed_ips '10.10.100.2/32'
+    option persistent_keepalive '25'
+
+# Add more peers as needed:
+# config wireguard_vpn
+#     option public_key 'CLIENT2_PUBLIC_KEY_HERE'
+#     option description 'Phone'
+#     list allowed_ips '10.10.100.3/32'
+#     option persistent_keepalive '25'

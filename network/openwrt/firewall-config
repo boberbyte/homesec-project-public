@@ -1,0 +1,511 @@
+# OpenWrt Firewall Configuration
+# File: /etc/config/firewall
+#
+# This configures zones, forwarding rules and port forwarding
+
+config defaults
+    option input 'REJECT'
+    option output 'ACCEPT'
+    option forward 'REJECT'
+    option synflood_protect '1'
+    option drop_invalid '1'
+    option tcp_syncookies '1'
+    option tcp_ecn '0'
+    option tcp_window_scaling '1'
+
+# ============================================================================
+# ZONES
+# ============================================================================
+
+# WAN Zone (Internet)
+config zone
+    option name 'wan'
+    list network 'wan'
+    list network 'wan6'
+    option input 'REJECT'
+    option output 'ACCEPT'
+    option forward 'REJECT'
+    option masq '1'
+    option mtu_fix '1'
+
+# VLAN 10 - Trusted LAN
+config zone
+    option name 'trusted'
+    list network 'trusted'
+    option input 'ACCEPT'
+    option output 'ACCEPT'
+    option forward 'REJECT'
+
+# VLAN 20 - Infrastructure
+config zone
+    option name 'infrastructure'
+    list network 'infrastructure'
+    option input 'ACCEPT'
+    option output 'ACCEPT'
+    option forward 'ACCEPT'
+
+# VLAN 30 - IoT/Guest
+config zone
+    option name 'iot'
+    list network 'iot'
+    option input 'REJECT'
+    option output 'ACCEPT'
+    option forward 'REJECT'
+
+# VLAN 40 - Lab
+config zone
+    option name 'lab'
+    list network 'lab'
+    option input 'ACCEPT'
+    option output 'ACCEPT'
+    option forward 'REJECT'
+
+# VLAN 99 - Honeypot DMZ
+config zone
+    option name 'honeypot'
+    list network 'honeypot'
+    option input 'REJECT'
+    option output 'ACCEPT'
+    option forward 'REJECT'
+
+# VPN Zone (WireGuard)
+config zone
+    option name 'vpn'
+    list network 'vpn'
+    option input 'ACCEPT'
+    option output 'ACCEPT'
+    option forward 'REJECT'
+
+# ============================================================================
+# FORWARDING RULES BETWEEN ZONES
+# ============================================================================
+
+# Trusted → Infrastructure (DNS, NAS, Kibana)
+config forwarding
+    option src 'trusted'
+    option dest 'infrastructure'
+
+# Trusted → Internet
+config forwarding
+    option src 'trusted'
+    option dest 'wan'
+
+# Infrastructure → All zones (management access)
+config forwarding
+    option src 'infrastructure'
+    option dest 'wan'
+
+config forwarding
+    option src 'infrastructure'
+    option dest 'trusted'
+
+config forwarding
+    option src 'infrastructure'
+    option dest 'iot'
+
+config forwarding
+    option src 'infrastructure'
+    option dest 'lab'
+
+config forwarding
+    option src 'infrastructure'
+    option dest 'honeypot'
+
+# IoT/Guest → Internet only
+config forwarding
+    option src 'iot'
+    option dest 'wan'
+
+# Lab → Infrastructure (DNS)
+config forwarding
+    option src 'lab'
+    option dest 'infrastructure'
+
+# Lab → Internet
+config forwarding
+    option src 'lab'
+    option dest 'wan'
+
+# Honeypot → Infrastructure (limited, see specific rules below)
+# Honeypot → Internet
+config forwarding
+    option src 'honeypot'
+    option dest 'wan'
+
+# VPN → Infrastructure only (management access)
+config forwarding
+    option src 'vpn'
+    option dest 'infrastructure'
+
+# ============================================================================
+# SPECIFIC ALLOW RULES
+# ============================================================================
+
+# Allow DNS from Trusted to Infrastructure
+config rule
+    option name 'Allow-DNS-Trusted-to-Infra'
+    option src 'trusted'
+    option dest 'infrastructure'
+    option dest_ip '192.168.20.53'
+    option dest_port '53'
+    option proto 'tcp udp'
+    option target 'ACCEPT'
+
+# Allow HTTPS to Kibana from Trusted
+config rule
+    option name 'Allow-Kibana-Trusted'
+    option src 'trusted'
+    option dest 'infrastructure'
+    option dest_ip '192.168.20.10'
+    option dest_port '443'
+    option proto 'tcp'
+    option target 'ACCEPT'
+
+# Allow Samba/NFS from Trusted
+config rule
+    option name 'Allow-Samba-Trusted'
+    option src 'trusted'
+    option dest 'infrastructure'
+    option dest_ip '192.168.20.10'
+    option dest_port '445'
+    option proto 'tcp'
+    option target 'ACCEPT'
+
+config rule
+    option name 'Allow-NFS-Trusted'
+    option src 'trusted'
+    option dest 'infrastructure'
+    option dest_ip '192.168.20.10'
+    option dest_port '2049'
+    option proto 'tcp'
+    option target 'ACCEPT'
+
+# Allow DNS from Lab to Infrastructure
+config rule
+    option name 'Allow-DNS-Lab-to-Infra'
+    option src 'lab'
+    option dest 'infrastructure'
+    option dest_ip '192.168.20.53'
+    option dest_port '53'
+    option proto 'tcp udp'
+    option target 'ACCEPT'
+
+# Allow Honeypot to send logs to Elasticsearch
+config rule
+    option name 'Allow-Honeypot-to-Elasticsearch'
+    option src 'honeypot'
+    option dest 'infrastructure'
+    option dest_ip '192.168.20.10'
+    option dest_port '9200'
+    option proto 'tcp'
+    option target 'ACCEPT'
+
+# Allow VPN to access SSH on server
+config rule
+    option name 'Allow-VPN-SSH-Server'
+    option src 'vpn'
+    option dest 'infrastructure'
+    option dest_ip '192.168.20.10'
+    option dest_port '22'
+    option proto 'tcp'
+    option target 'ACCEPT'
+
+# Allow VPN to access Kibana
+config rule
+    option name 'Allow-VPN-Kibana'
+    option src 'vpn'
+    option dest 'infrastructure'
+    option dest_ip '192.168.20.10'
+    option dest_port '443'
+    option proto 'tcp'
+    option target 'ACCEPT'
+
+# Allow VPN to access Switch management
+config rule
+    option name 'Allow-VPN-Switch-HTTP'
+    option src 'vpn'
+    option dest 'infrastructure'
+    option dest_ip '192.168.20.11'
+    option dest_port '80 443'
+    option proto 'tcp'
+    option target 'ACCEPT'
+
+# Allow VPN to access Router management (this firewall)
+config rule
+    option name 'Allow-VPN-Router-HTTPS'
+    option src 'vpn'
+    option dest_port '443 80'
+    option proto 'tcp'
+    option target 'ACCEPT'
+
+# ============================================================================
+# PORT FORWARDING FROM INTERNET TO HONEYPOT
+# ============================================================================
+
+# WireGuard VPN port
+config rule
+    option name 'Allow-WireGuard'
+    option src 'wan'
+    option dest_port '51820'
+    option proto 'udp'
+    option target 'ACCEPT'
+
+# Port forwards to T-Pot Honeypot
+# FTP Honeypot
+config redirect
+    option name 'Honeypot-FTP'
+    option src 'wan'
+    option src_dport '21'
+    option dest 'honeypot'
+    option dest_ip '192.168.99.10'
+    option dest_port '21'
+    option proto 'tcp'
+
+# SSH Honeypot
+config redirect
+    option name 'Honeypot-SSH'
+    option src 'wan'
+    option src_dport '2222'  # Use non-standard port to avoid conflicts
+    option dest 'honeypot'
+    option dest_ip '192.168.99.10'
+    option dest_port '22'
+    option proto 'tcp'
+
+# Telnet Honeypot
+config redirect
+    option name 'Honeypot-Telnet'
+    option src 'wan'
+    option src_dport '23'
+    option dest 'honeypot'
+    option dest_ip '192.168.99.10'
+    option dest_port '23'
+    option proto 'tcp'
+
+# HTTP Honeypot
+config redirect
+    option name 'Honeypot-HTTP'
+    option src 'wan'
+    option src_dport '8080'  # Use non-standard port
+    option dest 'honeypot'
+    option dest_ip '192.168.99.10'
+    option dest_port '80'
+    option proto 'tcp'
+
+# HTTPS Honeypot
+config redirect
+    option name 'Honeypot-HTTPS'
+    option src 'wan'
+    option src_dport '8443'  # Use non-standard port
+    option dest 'honeypot'
+    option dest_ip '192.168.99.10'
+    option dest_port '443'
+    option proto 'tcp'
+
+# MySQL Honeypot
+config redirect
+    option name 'Honeypot-MySQL'
+    option src 'wan'
+    option src_dport '3306'
+    option dest 'honeypot'
+    option dest_ip '192.168.99.10'
+    option dest_port '3306'
+    option proto 'tcp'
+
+# PostgreSQL Honeypot
+config redirect
+    option name 'Honeypot-PostgreSQL'
+    option src 'wan'
+    option src_dport '5432'
+    option dest 'honeypot'
+    option dest_ip '192.168.99.10'
+    option dest_port '5432'
+    option proto 'tcp'
+
+# MSSQL Honeypot
+config redirect
+    option name 'Honeypot-MSSQL'
+    option src 'wan'
+    option src_dport '1433'
+    option dest 'honeypot'
+    option dest_ip '192.168.99.10'
+    option dest_port '1433'
+    option proto 'tcp'
+
+# RDP Honeypot
+config redirect
+    option name 'Honeypot-RDP'
+    option src 'wan'
+    option src_dport '3389'
+    option dest 'honeypot'
+    option dest_ip '192.168.99.10'
+    option dest_port '3389'
+    option proto 'tcp'
+
+# SMB Honeypot
+config redirect
+    option name 'Honeypot-SMB'
+    option src 'wan'
+    option src_dport '445'
+    option dest 'honeypot'
+    option dest_ip '192.168.99.10'
+    option dest_port '445'
+    option proto 'tcp'
+
+# ============================================================================
+# REJECT RULES (explicit denies for logging)
+# ============================================================================
+
+# Block Trusted → IoT/Guest
+config rule
+    option name 'Block-Trusted-to-IoT'
+    option src 'trusted'
+    option dest 'iot'
+    option target 'REJECT'
+
+# Block Trusted → Lab
+config rule
+    option name 'Block-Trusted-to-Lab'
+    option src 'trusted'
+    option dest 'lab'
+    option target 'REJECT'
+
+# Block Trusted → Honeypot
+config rule
+    option name 'Block-Trusted-to-Honeypot'
+    option src 'trusted'
+    option dest 'honeypot'
+    option target 'REJECT'
+
+# Block IoT → Trusted
+config rule
+    option name 'Block-IoT-to-Trusted'
+    option src 'iot'
+    option dest 'trusted'
+    option target 'REJECT'
+
+# Block IoT → Infrastructure
+config rule
+    option name 'Block-IoT-to-Infrastructure'
+    option src 'iot'
+    option dest 'infrastructure'
+    option target 'REJECT'
+
+# Block IoT → Lab
+config rule
+    option name 'Block-IoT-to-Lab'
+    option src 'iot'
+    option dest 'lab'
+    option target 'REJECT'
+
+# Block IoT → Honeypot
+config rule
+    option name 'Block-IoT-to-Honeypot'
+    option src 'iot'
+    option dest 'honeypot'
+    option target 'REJECT'
+
+# Block Lab → Trusted
+config rule
+    option name 'Block-Lab-to-Trusted'
+    option src 'lab'
+    option dest 'trusted'
+    option target 'REJECT'
+
+# Block Lab → IoT
+config rule
+    option name 'Block-Lab-to-IoT'
+    option src 'lab'
+    option dest 'iot'
+    option target 'REJECT'
+
+# Block Lab → Honeypot
+config rule
+    option name 'Block-Lab-to-Honeypot'
+    option src 'lab'
+    option dest 'honeypot'
+    option target 'REJECT'
+
+# Block Honeypot to everything except Elasticsearch and Internet
+config rule
+    option name 'Block-Honeypot-to-Trusted'
+    option src 'honeypot'
+    option dest 'trusted'
+    option target 'REJECT'
+
+config rule
+    option name 'Block-Honeypot-to-IoT'
+    option src 'honeypot'
+    option dest 'iot'
+    option target 'REJECT'
+
+config rule
+    option name 'Block-Honeypot-to-Lab'
+    option src 'honeypot'
+    option dest 'lab'
+    option target 'REJECT'
+
+# Block VPN from accessing other VLANs (only Infrastructure allowed)
+config rule
+    option name 'Block-VPN-to-Trusted'
+    option src 'vpn'
+    option dest 'trusted'
+    option target 'REJECT'
+
+config rule
+    option name 'Block-VPN-to-IoT'
+    option src 'vpn'
+    option dest 'iot'
+    option target 'REJECT'
+
+config rule
+    option name 'Block-VPN-to-Lab'
+    option src 'vpn'
+    option dest 'lab'
+    option target 'REJECT'
+
+config rule
+    option name 'Block-VPN-to-Honeypot'
+    option src 'vpn'
+    option dest 'honeypot'
+    option target 'REJECT'
+
+# ============================================================================
+# RATE LIMITING (DDoS protection)
+# ============================================================================
+
+# Limit new connections from WAN
+config rule
+    option name 'Rate-Limit-WAN-Connections'
+    option src 'wan'
+    option proto 'tcp'
+    option target 'REJECT'
+    option limit '100/sec'
+    option limit_burst '200'
+
+# Limit SSH attempts from WAN (if ever exposed)
+config rule
+    option name 'Rate-Limit-SSH'
+    option src 'wan'
+    option dest_port '22'
+    option proto 'tcp'
+    option target 'REJECT'
+    option limit '3/min'
+
+# ============================================================================
+# LOGGING
+# ============================================================================
+
+# Log dropped packets from WAN
+config rule
+    option name 'Log-WAN-Drops'
+    option src 'wan'
+    option target 'DROP'
+    option log '1'
+    option log_prefix 'WAN-DROP: '
+
+# Log rejected packets between VLANs
+config rule
+    option name 'Log-VLAN-Rejects'
+    option target 'REJECT'
+    option log '1'
+    option log_prefix 'VLAN-REJECT: '

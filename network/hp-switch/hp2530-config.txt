@@ -1,0 +1,323 @@
+; HP 2530-24G-PoEP Switch (J9773A) Configuration
+; HomeSec Project - Network Segmentation & Security
+;
+; IMPORTANT: This is a reference configuration.
+; Always backup your current config before applying changes.
+;
+; To apply:
+; 1. Connect via console cable
+; 2. Login as manager
+; 3. Enter configuration mode
+; 4. Copy/paste relevant sections
+; 5. Save config: write memory
+
+; ==============================================================================
+; BASIC SYSTEM CONFIGURATION
+; ==============================================================================
+
+hostname "HomeSec-Switch"
+time timezone 60
+time daylight-time-rule Continental-Europe-and-Moscow
+
+; Management VLAN
+management-vlan 20
+
+; Set management IP (VLAN 20 - Infrastructure)
+vlan 20
+   ip address 192.168.20.11 255.255.255.0
+   exit
+
+; Default gateway
+ip default-gateway 192.168.20.1
+
+; DNS servers
+ip dns server-address priority 1 192.168.20.53
+ip dns server-address priority 2 1.1.1.1
+
+; ==============================================================================
+; VLAN CONFIGURATION
+; ==============================================================================
+
+; Create VLANs
+vlan 10
+   name "Trusted-LAN"
+   untagged 1-8,17-20
+   exit
+
+vlan 20
+   name "Infrastructure"
+   untagged 9-10,23-24
+   tagged 21
+   exit
+
+vlan 30
+   name "IoT-Guest"
+   untagged 11-16
+   exit
+
+vlan 40
+   name "Lab-VMs"
+   ; Tagged on trunk if needed
+   exit
+
+vlan 99
+   name "Honeypot-DMZ"
+   ; Tagged on trunk if needed
+   exit
+
+; ==============================================================================
+; TRUNK CONFIGURATION
+; ==============================================================================
+
+; Port 21: Trunk to Rock Pi E (all VLANs)
+interface 21
+   name "Trunk-to-IPS"
+   tagged vlan 10,20,30,40,99
+   exit
+
+; Port 9: Trunk to Server (if server NIC supports 802.1Q)
+interface 9
+   name "Server-Trunk"
+   tagged vlan 20,40,99
+   untagged vlan 20
+   exit
+
+; ==============================================================================
+; PORT MIRRORING (SPAN)
+; ==============================================================================
+
+; Mirror all traffic to port 22 (Rock Pi 4 SE - IDS)
+mirror 1
+   name "IDS-Monitor"
+
+   ; Source ports: All except SPAN destination
+   port 1-21,23-24
+
+   ; Destination port
+   destination 22
+
+   ; Mirror both directions
+   direction both
+
+   exit
+
+; Configure SPAN destination port
+interface 22
+   name "SPAN-to-IDS"
+   ; This port should NOT be in any VLAN for normal traffic
+   no vlan 1
+   exit
+
+; ==============================================================================
+; PORT DESCRIPTIONS
+; ==============================================================================
+
+interface 1
+   name "Trusted-Port1"
+   exit
+
+interface 2
+   name "Trusted-Port2"
+   exit
+
+interface 3
+   name "Trusted-Port3"
+   exit
+
+interface 4
+   name "Trusted-Port4"
+   exit
+
+interface 5
+   name "Trusted-Port5"
+   exit
+
+interface 6
+   name "Trusted-Port6"
+   exit
+
+interface 7
+   name "Trusted-Port7"
+   exit
+
+interface 8
+   name "Trusted-Port8"
+   exit
+
+interface 9
+   name "CentOS-Server"
+   exit
+
+interface 10
+   name "RockPi4-IDS"
+   exit
+
+interface 11
+   name "WiFi-AP1"
+   exit
+
+interface 12
+   name "WiFi-AP2"
+   exit
+
+interface 13
+   name "WiFi-AP3"
+   exit
+
+interface 14
+   name "WiFi-AP4"
+   exit
+
+interface 15
+   name "WiFi-AP5"
+   exit
+
+interface 16
+   name "WiFi-AP6"
+   exit
+
+interface 17
+   name "Trusted-Port17"
+   exit
+
+interface 18
+   name "Trusted-Port18"
+   exit
+
+interface 19
+   name "Trusted-Port19"
+   exit
+
+interface 20
+   name "Trusted-Port20"
+   exit
+
+interface 21
+   name "Uplink-to-IPS"
+   exit
+
+interface 22
+   name "SPAN-to-IDS"
+   exit
+
+interface 23
+   name "Management-Port"
+   exit
+
+interface 24
+   name "Reserved"
+   exit
+
+; ==============================================================================
+; PoE CONFIGURATION (for WiFi APs)
+; ==============================================================================
+
+; Enable PoE on AP ports (11-16)
+interface 11-16
+   power-over-ethernet
+   exit
+
+; ==============================================================================
+; SNMP CONFIGURATION
+; ==============================================================================
+
+; Enable SNMP for monitoring
+snmp-server community "public" unrestricted
+
+; SNMP trap destination (Rock Pi 4 SE)
+snmp-server host 192.168.20.20 community "public"
+
+; Enable specific traps
+snmp-server enable traps
+snmpv3 enable
+
+; ==============================================================================
+; SFLOW CONFIGURATION
+; ==============================================================================
+
+; Enable sFlow for network monitoring
+sflow 1 destination 192.168.20.20
+sflow 1 polling 1-24 30
+sflow 1 sampling 1-24 512
+
+; ==============================================================================
+; SECURITY CONFIGURATION
+; ==============================================================================
+
+; Disable unused services
+no tftp server
+no telnet-server
+no web-management plaintext
+
+; Enable HTTPS management only
+web-management ssl
+ip ssh
+
+; Password policies
+password minimum-length 12
+password complexity
+
+; Enable port security (optional, adjust per port)
+; interface 1
+;    port-security
+;    port-security max-mac-count 3
+;    exit
+
+; ==============================================================================
+; SPANNING TREE CONFIGURATION
+; ==============================================================================
+
+; Enable RSTP
+spanning-tree
+spanning-tree mode rapid-pvst
+spanning-tree priority 4
+
+; ==============================================================================
+; QoS CONFIGURATION (Optional)
+; ==============================================================================
+
+; Enable QoS
+qos
+
+; Trust DSCP markings
+qos dscp-map default
+
+; Prioritize DNS, SSH, VPN traffic
+; (Add specific rules as needed)
+
+; ==============================================================================
+; LOGGING CONFIGURATION
+; ==============================================================================
+
+; Enable logging
+logging 192.168.20.20
+logging facility local7
+logging severity info
+
+; ==============================================================================
+; SAVE CONFIGURATION
+; ==============================================================================
+
+; After applying all changes, save config:
+; write memory
+;
+; To backup config to TFTP:
+; copy running-config tftp 192.168.20.10 hp2530-backup.cfg
+;
+; To view current config:
+; show running-config
+;
+; To view VLAN configuration:
+; show vlan
+;
+; To view port status:
+; show interfaces brief
+;
+; To view PoE status:
+; show power-over-ethernet brief
+;
+; To view port mirroring:
+; show mirror
+;
+; To view sFlow status:
+; show sflow

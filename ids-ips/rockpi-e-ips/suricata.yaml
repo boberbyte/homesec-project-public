@@ -1,0 +1,424 @@
+# Suricata IPS Configuration - Rock Pi E
+# HomeSec Project - Inline Bridge Mode
+#
+# This configuration runs Suricata in IPS mode (inline)
+# between OpenWrt router (eth0) and HP switch (eth1)
+
+# ============================================================================
+# VARIABLES
+# ============================================================================
+
+vars:
+  address-groups:
+    HOME_NET: "[192.168.10.0/24,192.168.20.0/24,192.168.30.0/24,192.168.40.0/24,192.168.99.0/24]"
+    EXTERNAL_NET: "!$HOME_NET"
+
+    # Specific subnets
+    TRUSTED_NET: "192.168.10.0/24"
+    INFRASTRUCTURE_NET: "192.168.20.0/24"
+    IOT_NET: "192.168.30.0/24"
+    LAB_NET: "192.168.40.0/24"
+    HONEYPOT_NET: "192.168.99.0/24"
+
+    # Servers
+    DNS_SERVERS: "192.168.20.53"
+    HTTP_SERVERS: "$INFRASTRUCTURE_NET"
+    SQL_SERVERS: "$INFRASTRUCTURE_NET"
+
+  port-groups:
+    HTTP_PORTS: "80"
+    HTTPS_PORTS: "443"
+    SSH_PORTS: "22"
+    FTP_PORTS: "21"
+
+# ============================================================================
+# PERFORMANCE TUNING (Rock Pi E - 1GB RAM, 2x ETH)
+# ============================================================================
+
+# Threading - adjusted for low-end device
+threading:
+  set-cpu-affinity: yes
+  cpu-affinity:
+    - management-cpu-set:
+        cpu: [ 0 ]
+    - receive-cpu-set:
+        cpu: [ 0,1 ]
+    - worker-cpu-set:
+        cpu: [ 0,1 ]
+  detect-thread-ratio: 1.0
+
+# ============================================================================
+# RUNMODE - AF_PACKET IPS MODE
+# ============================================================================
+
+# AF_PACKET support for inline IPS
+af-packet:
+  - interface: eth0
+    # Use cluster mode for better performance
+    cluster-id: 98
+    cluster-type: cluster_flow
+    defrag: yes
+    # Use IPS mode (inline)
+    copy-mode: ips
+    copy-iface: eth1
+    # Ring settings (conservative for 1GB RAM)
+    ring-size: 2048
+    block-size: 32768
+    # Enable hardware offload if available
+    use-mmap: yes
+    tpacket-v3: yes
+
+  - interface: eth1
+    cluster-id: 97
+    cluster-type: cluster_flow
+    defrag: yes
+    copy-mode: ips
+    copy-iface: eth0
+    ring-size: 2048
+    block-size: 32768
+    use-mmap: yes
+    tpacket-v3: yes
+
+# ============================================================================
+# PACKET PROCESSING
+# ============================================================================
+
+# Maximum packet size
+default-packet-size: 1518
+
+# Checksum validation (can be disabled to improve performance)
+stream:
+  checksum-validation: yes
+
+# ============================================================================
+# FLOW AND STREAM CONFIGURATION
+# ============================================================================
+
+flow:
+  memcap: 256mb
+  hash-size: 65536
+  prealloc: 10000
+  emergency-recovery: 30
+
+stream:
+  memcap: 256mb
+  checksum-validation: yes
+  inline: auto
+  reassembly:
+    memcap: 256mb
+    depth: 1mb
+    toserver-chunk-size: 2560
+    toclient-chunk-size: 2560
+
+# ============================================================================
+# DEFRAGMENTATION
+# ============================================================================
+
+defrag:
+  memcap: 128mb
+  hash-size: 65536
+  trackers: 65535
+  max-frags: 65535
+  prealloc: yes
+  timeout: 60
+
+# ============================================================================
+# DETECTION ENGINE
+# ============================================================================
+
+detect:
+  profile: medium
+  custom-values:
+    toclient-groups: 3
+    toserver-groups: 25
+  sgh-mpm-context: auto
+  inspection-recursion-limit: 3000
+
+# Pattern matcher
+mpm-algo: auto
+spm-algo: auto
+
+# ============================================================================
+# APPLICATION LAYER PROTOCOLS
+# ============================================================================
+
+app-layer:
+  protocols:
+    # Enable all major protocols
+    tls:
+      enabled: yes
+      detection-ports:
+        dp: 443
+    http:
+      enabled: yes
+    dns:
+      enabled: yes
+      tcp:
+        enabled: yes
+        detection-ports:
+          dp: 53
+      udp:
+        enabled: yes
+        detection-ports:
+          dp: 53
+    ssh:
+      enabled: yes
+    smtp:
+      enabled: yes
+    ftp:
+      enabled: yes
+    smb:
+      enabled: yes
+    mysql:
+      enabled: no  # Disable if not used to save resources
+    rdp:
+      enabled: yes
+
+# ============================================================================
+# LOGGING
+# ============================================================================
+
+# Logging levels: error, warning, notice, info, debug
+logging:
+  default-log-level: notice
+
+  outputs:
+  # Console output
+  - console:
+      enabled: yes
+      type: json
+
+  # File output
+  - file:
+      enabled: yes
+      level: info
+      filename: /var/log/suricata/suricata.log
+      type: json
+
+  # Syslog output (to Rock Pi 4 SE, then to ELK)
+  - syslog:
+      enabled: yes
+      facility: local5
+      level: info
+      format: json
+
+# ============================================================================
+# OUTPUTS (ALERTS AND LOGS)
+# ============================================================================
+
+outputs:
+  # Fast log (alerts)
+  - fast:
+      enabled: yes
+      filename: /var/log/suricata/fast.log
+      append: yes
+
+  # EVE JSON log (main output for ELK)
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: /var/log/suricata/eve.json
+
+      # Community ID for flow tracking
+      community-id: true
+      community-id-seed: 0
+
+      types:
+        # Core events
+        - alert:
+            payload: yes
+            payload-buffer-size: 4kb
+            payload-printable: yes
+            packet: yes
+            metadata: yes
+
+        - anomaly:
+            enabled: yes
+            types:
+              decode: yes
+              stream: yes
+              applayer: yes
+
+        - http:
+            enabled: yes
+            extended: yes
+
+        - dns:
+            enabled: yes
+            query: yes
+            answer: yes
+
+        - tls:
+            enabled: yes
+            extended: yes
+
+        - ssh:
+            enabled: yes
+
+        - smtp:
+            enabled: yes
+
+        - flow:
+            enabled: yes
+
+        - files:
+            enabled: yes
+            force-magic: yes
+            force-hash: [md5, sha256]
+
+        - drop:
+            enabled: yes
+
+        - stats:
+            enabled: yes
+            totals: yes
+            threads: yes
+            deltas: yes
+
+# ============================================================================
+# RULE FILES
+# ============================================================================
+
+# Default rule path
+default-rule-path: /var/lib/suricata/rules
+
+rule-files:
+  - suricata.rules
+
+# Classification config
+classification-file: /etc/suricata/classification.config
+reference-config-file: /etc/suricata/reference.config
+threshold-file: /etc/suricata/threshold.config
+
+# ============================================================================
+# RULE ACTIONS
+# ============================================================================
+
+# Action order (priority)
+action-order:
+  - pass
+  - drop
+  - reject
+  - alert
+
+# ============================================================================
+# PACKET CAPTURE (PCAP)
+# ============================================================================
+
+pcap:
+  - interface: default
+
+# Conditional packet capture (save full packets for alerts)
+pcap-log:
+  enabled: no  # Disabled to save disk space
+  filename: /var/log/suricata/log.pcap
+  limit: 32mb
+  max-files: 100
+  compression: none
+  mode: normal
+
+# ============================================================================
+# PROFILING (for tuning)
+# ============================================================================
+
+profiling:
+  rules:
+    enabled: no  # Enable for troubleshooting slow rules
+    filename: /var/log/suricata/rule_perf.log
+    append: yes
+
+  keywords:
+    enabled: no
+    filename: /var/log/suricata/keyword_perf.log
+    append: yes
+
+  rulegroups:
+    enabled: no
+    filename: /var/log/suricata/rulegrp_perf.log
+    append: yes
+
+# ============================================================================
+# COREDUMP
+# ============================================================================
+
+coredump:
+  max-dump: unlimited
+
+# ============================================================================
+# HOST MODE (for OS detection)
+# ============================================================================
+
+host-mode: auto
+
+# ============================================================================
+# UNIX SOCKET
+# ============================================================================
+
+unix-command:
+  enabled: yes
+  filename: /var/run/suricata/suricata-command.socket
+
+# ============================================================================
+# PCAP SUPPORT
+# ============================================================================
+
+pcap-file:
+  checksum-checks: auto
+
+# ============================================================================
+# ADVANCED PERFORMANCE TUNING
+# ============================================================================
+
+# Engine analysis (for rule development)
+engine-analysis:
+  rules-fast-pattern: yes
+  rules: yes
+
+# Napatech (not applicable for Rock Pi E)
+napatech:
+  hba: -1
+
+# PF_RING (not applicable)
+pfring:
+  - interface: default
+
+# ============================================================================
+# EXCEPTION POLICY
+# ============================================================================
+
+exception-policy: auto
+
+# ============================================================================
+# STATS
+# ============================================================================
+
+stats:
+  enabled: yes
+  interval: 30
+  decoder-events: yes
+  decoder-events-prefix: "decoder.event"
+  stream-events: yes
+
+# ============================================================================
+# SYSTEM LIMITS
+# ============================================================================
+
+# Maximum pending packets
+max-pending-packets: 1024
+
+# Runmode
+runmode: workers
+
+# ============================================================================
+# SENSOR NAME
+# ============================================================================
+
+sensor-name: HomeSec-IPS-RockPiE
+
+# ============================================================================
+# CAPTURE SETTINGS
+# ============================================================================
+
+capture:
+  disable-offloading: yes
+  checksum-checks: auto

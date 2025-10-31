@@ -1,0 +1,505 @@
+# Suricata IDS Configuration - Rock Pi 4 SE
+# HomeSec Project - Passive Monitoring Mode
+#
+# This configuration runs Suricata in IDS mode (passive)
+# receiving mirrored traffic from HP switch SPAN port
+
+# ============================================================================
+# VARIABLES
+# ============================================================================
+
+vars:
+  address-groups:
+    HOME_NET: "[192.168.10.0/24,192.168.20.0/24,192.168.30.0/24,192.168.40.0/24,192.168.99.0/24]"
+    EXTERNAL_NET: "!$HOME_NET"
+
+    # Specific subnets
+    TRUSTED_NET: "192.168.10.0/24"
+    INFRASTRUCTURE_NET: "192.168.20.0/24"
+    IOT_NET: "192.168.30.0/24"
+    LAB_NET: "192.168.40.0/24"
+    HONEYPOT_NET: "192.168.99.0/24"
+
+    # Servers
+    DNS_SERVERS: "192.168.20.53"
+    HTTP_SERVERS: "$INFRASTRUCTURE_NET"
+    SQL_SERVERS: "$INFRASTRUCTURE_NET"
+
+  port-groups:
+    HTTP_PORTS: "80"
+    HTTPS_PORTS: "443"
+    SSH_PORTS: "22"
+    FTP_PORTS: "21"
+
+# ============================================================================
+# PERFORMANCE TUNING (Rock Pi 4 SE - 4GB RAM, better CPU)
+# ============================================================================
+
+# Threading - optimized for better hardware
+threading:
+  set-cpu-affinity: yes
+  cpu-affinity:
+    - management-cpu-set:
+        cpu: [ 0 ]
+    - receive-cpu-set:
+        cpu: [ 1,2 ]
+    - worker-cpu-set:
+        cpu: [ 1,2,3,4,5 ]
+  detect-thread-ratio: 1.5
+
+# ============================================================================
+# RUNMODE - AF_PACKET PASSIVE MODE
+# ============================================================================
+
+# AF_PACKET support for passive monitoring
+af-packet:
+  - interface: eth0
+    # Cluster mode for load balancing
+    cluster-id: 99
+    cluster-type: cluster_flow
+    defrag: yes
+    # Passive mode (IDS, not IPS)
+    # No copy-mode since we're only monitoring
+    # Ring settings (more aggressive with 4GB RAM)
+    ring-size: 4096
+    block-size: 65536
+    use-mmap: yes
+    tpacket-v3: yes
+    # Can handle higher bandwidth passively
+    threads: 2
+
+# ============================================================================
+# PACKET PROCESSING
+# ============================================================================
+
+# Maximum packet size (jumbo frames support)
+default-packet-size: 1522
+
+# ============================================================================
+# FLOW AND STREAM CONFIGURATION
+# ============================================================================
+
+flow:
+  memcap: 512mb
+  hash-size: 131072
+  prealloc: 20000
+  emergency-recovery: 30
+
+stream:
+  memcap: 1gb
+  checksum-validation: yes
+  inline: no  # Passive mode
+  reassembly:
+    memcap: 512mb
+    depth: 1mb
+    toserver-chunk-size: 2560
+    toclient-chunk-size: 2560
+    # More aggressive reassembly for deep inspection
+    randomize-chunk-size: yes
+
+# ============================================================================
+# DEFRAGMENTATION
+# ============================================================================
+
+defrag:
+  memcap: 256mb
+  hash-size: 131072
+  trackers: 131072
+  max-frags: 131072
+  prealloc: yes
+  timeout: 60
+
+# ============================================================================
+# DETECTION ENGINE
+# ============================================================================
+
+detect:
+  profile: high  # More thorough detection in passive mode
+  custom-values:
+    toclient-groups: 3
+    toserver-groups: 25
+  sgh-mpm-context: auto
+  inspection-recursion-limit: 3000
+
+# Pattern matcher (optimized)
+mpm-algo: auto
+spm-algo: auto
+
+# ============================================================================
+# APPLICATION LAYER PROTOCOLS
+# ============================================================================
+
+app-layer:
+  protocols:
+    # Enable all protocols for deep inspection
+    tls:
+      enabled: yes
+      detection-ports:
+        dp: 443
+      ja3-fingerprints: yes  # Enable JA3 fingerprinting
+
+    http:
+      enabled: yes
+      memcap: 128mb
+
+    http2:
+      enabled: yes
+
+    dns:
+      enabled: yes
+      tcp:
+        enabled: yes
+        detection-ports:
+          dp: 53
+      udp:
+        enabled: yes
+        detection-ports:
+          dp: 53
+
+    ssh:
+      enabled: yes
+      hassh-fingerprints: yes  # Enable SSH fingerprinting
+
+    smtp:
+      enabled: yes
+      mime:
+        decode-mime: yes
+        decode-base64: yes
+        decode-quoted-printable: yes
+
+    imap:
+      enabled: yes
+
+    ftp:
+      enabled: yes
+
+    tftp:
+      enabled: yes
+
+    smb:
+      enabled: yes
+      detection-ports:
+        dp: 139, 445
+
+    nfs:
+      enabled: yes
+
+    dcerpc:
+      enabled: yes
+
+    rdp:
+      enabled: yes
+
+    modbus:
+      enabled: yes
+
+    enip:
+      enabled: yes
+
+    dnp3:
+      enabled: yes
+
+    ntp:
+      enabled: yes
+
+    dhcp:
+      enabled: yes
+
+    snmp:
+      enabled: yes
+
+    ikev2:
+      enabled: yes
+
+    krb5:
+      enabled: yes
+
+# ============================================================================
+# LOGGING
+# ============================================================================
+
+logging:
+  default-log-level: notice
+
+  outputs:
+  # Console output
+  - console:
+      enabled: no
+
+  # File output
+  - file:
+      enabled: yes
+      level: info
+      filename: /var/log/suricata/suricata.log
+      type: json
+
+  # Syslog output (to local filebeat)
+  - syslog:
+      enabled: yes
+      facility: local5
+      level: info
+      format: json
+
+# ============================================================================
+# OUTPUTS (ALERTS AND LOGS)
+# ============================================================================
+
+outputs:
+  # Fast log (alerts)
+  - fast:
+      enabled: yes
+      filename: /var/log/suricata/fast.log
+      append: yes
+
+  # EVE JSON log (main output for ELK)
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: /var/log/suricata/eve.json
+
+      # Rotate log files
+      rotate-interval: 1h
+
+      # Community ID for flow tracking
+      community-id: true
+      community-id-seed: 0
+
+      types:
+        # Core events
+        - alert:
+            payload: yes
+            payload-buffer-size: 4kb
+            payload-printable: yes
+            packet: yes
+            metadata: yes
+            tagged-packets: yes
+
+        - anomaly:
+            enabled: yes
+            types:
+              decode: yes
+              stream: yes
+              applayer: yes
+
+        - http:
+            enabled: yes
+            extended: yes
+            custom: [request-header, response-header]
+
+        - dns:
+            enabled: yes
+            version: 2
+            query: yes
+            answer: yes
+
+        - tls:
+            enabled: yes
+            extended: yes
+            session-resumption: yes
+
+        - ssh:
+            enabled: yes
+
+        - smtp:
+            enabled: yes
+            extended: yes
+
+        - files:
+            enabled: yes
+            force-magic: yes
+            force-hash: [md5, sha256]
+
+        - flow:
+            enabled: yes
+
+        - netflow:
+            enabled: yes
+
+        - drop:
+            enabled: yes
+
+        - stats:
+            enabled: yes
+            totals: yes
+            threads: yes
+            deltas: yes
+
+        - dhcp:
+            enabled: yes
+            extended: yes
+
+        - nfs:
+            enabled: yes
+
+        - smb:
+            enabled: yes
+
+        - tftp:
+            enabled: yes
+
+        - ikev2:
+            enabled: yes
+
+        - krb5:
+            enabled: yes
+
+        - snmp:
+            enabled: yes
+
+        - rdp:
+            enabled: yes
+
+        - metadata:
+            enabled: yes
+
+# ============================================================================
+# RULE FILES
+# ============================================================================
+
+default-rule-path: /var/lib/suricata/rules
+
+rule-files:
+  - suricata.rules
+
+classification-file: /etc/suricata/classification.config
+reference-config-file: /etc/suricata/reference.config
+threshold-file: /etc/suricata/threshold.config
+
+# ============================================================================
+# RULE ACTIONS
+# ============================================================================
+
+# In IDS mode, only alert (no drop/reject)
+action-order:
+  - pass
+  - alert
+
+# ============================================================================
+# PACKET CAPTURE (PCAP)
+# ============================================================================
+
+pcap:
+  - interface: default
+
+# Conditional packet capture (save full packets for high-severity alerts)
+pcap-log:
+  enabled: yes
+  filename: /var/log/suricata/log.pcap
+  limit: 100mb
+  max-files: 20
+  compression: none
+  mode: normal
+  # Only log packets for priority 1 and 2 alerts
+  conditional: yes
+  honor-pass-rules: yes
+
+# ============================================================================
+# PROFILING (for tuning)
+# ============================================================================
+
+profiling:
+  rules:
+    enabled: yes
+    filename: /var/log/suricata/rule_perf.log
+    append: yes
+    sort: ticks  # or: avgticks, checks, matches
+
+  keywords:
+    enabled: yes
+    filename: /var/log/suricata/keyword_perf.log
+    append: yes
+
+  rulegroups:
+    enabled: yes
+    filename: /var/log/suricata/rulegrp_perf.log
+    append: yes
+
+  packets:
+    enabled: yes
+    filename: /var/log/suricata/packet_stats.log
+    append: yes
+
+# ============================================================================
+# COREDUMP
+# ============================================================================
+
+coredump:
+  max-dump: unlimited
+
+# ============================================================================
+# HOST MODE
+# ============================================================================
+
+host-mode: auto
+
+# ============================================================================
+# UNIX SOCKET
+# ============================================================================
+
+unix-command:
+  enabled: yes
+  filename: /var/run/suricata/suricata-command.socket
+
+# ============================================================================
+# ENGINE ANALYSIS
+# ============================================================================
+
+engine-analysis:
+  rules-fast-pattern: yes
+  rules: yes
+
+# ============================================================================
+# STATS
+# ============================================================================
+
+stats:
+  enabled: yes
+  interval: 30
+  decoder-events: yes
+  decoder-events-prefix: "decoder.event"
+  stream-events: yes
+
+# ============================================================================
+# SYSTEM LIMITS
+# ============================================================================
+
+max-pending-packets: 2048
+
+runmode: workers
+
+# ============================================================================
+# SENSOR NAME
+# ============================================================================
+
+sensor-name: HomeSec-IDS-RockPi4SE
+
+# ============================================================================
+# CAPTURE SETTINGS
+# ============================================================================
+
+capture:
+  disable-offloading: no  # Can keep offloading in passive mode
+  checksum-checks: yes
+
+# ============================================================================
+# LUAJIT (if available)
+# ============================================================================
+
+luajit:
+  states: 128
+
+# ============================================================================
+# DATASET (for IP reputation, etc.)
+# ============================================================================
+
+datasets:
+  defaults:
+    memcap: 100mb
+    hashsize: 2048
+
+# ============================================================================
+# APPLICATION LAYER EVENT FORCING
+# ============================================================================
+
+app-layer:
+  error-policy: drop-flow
