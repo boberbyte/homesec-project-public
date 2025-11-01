@@ -1,0 +1,29 @@
+; Reverse Zone File for VLAN 20 (Infrastructure)
+; Zone: 20.168.192.in-addr.arpa
+; Network: 192.168.20.0/24
+
+$TTL    86400
+@       IN      SOA     dns.homesec.local. admin.homesec.local. (
+                        2024011501  ; Serial (YYYYMMDDNN)
+                        3600        ; Refresh
+                        1800        ; Retry
+                        604800      ; Expire
+                        86400       ; Minimum TTL
+                        )
+
+; Name server
+@       IN      NS      dns.homesec.local.
+
+; PTR Records for Infrastructure VLAN (192.168.20.0/24)
+1       IN      PTR     router.homesec.local.
+10      IN      PTR     server.homesec.local.
+11      IN      PTR     switch.homesec.local.
+20      IN      PTR     ids.homesec.local.
+53      IN      PTR     dns.homesec.local.
+
+; VPN Clients (WireGuard)
+2       IN      PTR     vpn-client-1.homesec.local.
+3       IN      PTR     vpn-client-2.homesec.local.
+4       IN      PTR     vpn-client-3.homesec.local.
+
+; Add more PTR records as needed

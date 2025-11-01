@@ -1,0 +1,226 @@
+# OpenWrt Firewall Configuration for T-Pot Honeypot Isolation
+# Add this to /etc/config/firewall on OpenWrt router
+#
+# This configuration ensures the honeypot (VLAN 99) is completely isolated
+# from internal networks while allowing internet access and logging to Elasticsearch
+
+# Zone for Honeypot DMZ (VLAN 99)
+config zone
+	option name 'honeypot'
+	option input 'REJECT'
+	option output 'REJECT'
+	option forward 'REJECT'
+	list network 'vlan99'
+	option masq '1'
+	option mtu_fix '1'
+	option log '1'
+	option log_limit '10/minute'
+
+# Allow honeypot to reach WAN (Internet)
+config forwarding
+	option src 'honeypot'
+	option dest 'wan'
+
+# =============================================================================
+# Allow Rules - Specific Services Only
+# =============================================================================
+
+# Allow DNS queries to internal DNS server
+config rule
+	option name 'Honeypot-to-DNS'
+	option src 'honeypot'
+	option dest 'vlan20'
+	option dest_ip '192.168.20.53'
+	option dest_port '53'
+	option proto 'udp'
+	option target 'ACCEPT'
+	option enabled '1'
+
+# Allow Elasticsearch logging
+config rule
+	option name 'Honeypot-to-Elasticsearch'
+	option src 'honeypot'
+	option dest 'vlan20'
+	option dest_ip '192.168.20.10'
+	option dest_port '9200'
+	option proto 'tcp'
+	option target 'ACCEPT'
+	option enabled '1'
+
+# Allow ICMP to gateway (monitoring/connectivity check)
+config rule
+	option name 'Honeypot-Ping-Gateway'
+	option src 'honeypot'
+	option dest_ip '192.168.20.1'
+	option proto 'icmp'
+	list icmp_type 'echo-request'
+	option target 'ACCEPT'
+	option enabled '1'
+
+# =============================================================================
+# Block Rules - Ensure No Access to Internal Networks
+# =============================================================================
+
+# Explicitly block honeypot to VLAN 10 (Trusted)
+config rule
+	option name 'Block-Honeypot-to-VLAN10'
+	option src 'honeypot'
+	option dest_ip '192.168.10.0/24'
+	option target 'REJECT'
+	option enabled '1'
+
+# Explicitly block honeypot to VLAN 20 (Infrastructure) - except DNS/ES above
+config rule
+	option name 'Block-Honeypot-to-VLAN20'
+	option src 'honeypot'
+	option dest_ip '192.168.20.0/24'
+	option target 'REJECT'
+	option enabled '1'
+
+# Explicitly block honeypot to VLAN 30 (IoT/Guest)
+config rule
+	option name 'Block-Honeypot-to-VLAN30'
+	option src 'honeypot'
+	option dest_ip '192.168.30.0/24'
+	option target 'REJECT'
+	option enabled '1'
+
+# Explicitly block honeypot to VLAN 40 (Lab VMs)
+config rule
+	option name 'Block-Honeypot-to-VLAN40'
+	option src 'honeypot'
+	option dest_ip '192.168.40.0/24'
+	option target 'REJECT'
+	option enabled '1'
+
+# =============================================================================
+# Port Forwarding from Internet to Honeypot
+# =============================================================================
+
+# SSH Honeypot (Port 2222 → 22)
+config redirect
+	option name 'Port-Forward-SSH-Honeypot'
+	option src 'wan'
+	option src_dport '2222'
+	option dest 'honeypot'
+	option dest_ip '192.168.99.10'
+	option dest_port '22'
+	option proto 'tcp'
+	option target 'DNAT'
+	option enabled '1'
+
+# HTTP Honeypot (Port 8080 → 80)
+config redirect
+	option name 'Port-Forward-HTTP-Honeypot'
+	option src 'wan'
+	option src_dport '8080'
+	option dest 'honeypot'
+	option dest_ip '192.168.99.10'
+	option dest_port '80'
+	option proto 'tcp'
+	option target 'DNAT'
+	option enabled '1'
+
+# HTTPS Honeypot (Port 8443 → 443)
+config redirect
+	option name 'Port-Forward-HTTPS-Honeypot'
+	option src 'wan'
+	option src_dport '8443'
+	option dest 'honeypot'
+	option dest_ip '192.168.99.10'
+	option dest_port '443'
+	option proto 'tcp'
+	option target 'DNAT'
+	option enabled '1'
+
+# FTP Honeypot (Port 2121 → 21)
+config redirect
+	option name 'Port-Forward-FTP-Honeypot'
+	option src 'wan'
+	option src_dport '2121'
+	option dest 'honeypot'
+	option dest_ip '192.168.99.10'
+	option dest_port '21'
+	option proto 'tcp'
+	option target 'DNAT'
+	option enabled '1'
+
+# Telnet Honeypot (Port 2323 → 23)
+config redirect
+	option name 'Port-Forward-Telnet-Honeypot'
+	option src 'wan'
+	option src_dport '2323'
+	option dest 'honeypot'
+	option dest_ip '192.168.99.10'
+	option dest_port '23'
+	option proto 'tcp'
+	option target 'DNAT'
+	option enabled '1'
+
+# RDP Honeypot (Port 3389 → 3389)
+config redirect
+	option name 'Port-Forward-RDP-Honeypot'
+	option src 'wan'
+	option src_dport '3389'
+	option dest 'honeypot'
+	option dest_ip '192.168.99.10'
+	option dest_port '3389'
+	option proto 'tcp'
+	option target 'DNAT'
+	option enabled '1'
+
+# SMB Honeypot (Port 4445 → 445)
+config redirect
+	option name 'Port-Forward-SMB-Honeypot'
+	option src 'wan'
+	option src_dport '4445'
+	option dest 'honeypot'
+	option dest_ip '192.168.99.10'
+	option dest_port '445'
+	option proto 'tcp'
+	option target 'DNAT'
+	option enabled '1'
+
+# =============================================================================
+# Management Access to Honeypot (VLAN 20 Only)
+# =============================================================================
+
+# Allow T-Pot Web UI from VLAN 20 (Infrastructure/VPN)
+config rule
+	option name 'Allow-TPot-WebUI-from-VLAN20'
+	option src 'vlan20'
+	option dest 'honeypot'
+	option dest_ip '192.168.99.10'
+	option dest_port '64297'
+	option proto 'tcp'
+	option target 'ACCEPT'
+	option enabled '1'
+
+# =============================================================================
+# Rate Limiting (Optional - Prevent DDoS on Honeypot)
+# =============================================================================
+
+# Limit connection rate to honeypot from WAN
+config rule
+	option name 'Rate-Limit-Honeypot-Connections'
+	option src 'wan'
+	option dest 'honeypot'
+	option proto 'tcp'
+	option limit '100/sec'
+	option limit_burst '200'
+	option target 'ACCEPT'
+	option enabled '0'  # Disabled by default, enable if DDoS occurs
+
+# =============================================================================
+# Logging
+# =============================================================================
+
+# Log all blocked honeypot attempts to internal networks
+config rule
+	option name 'Log-Blocked-Honeypot-Internal'
+	option src 'honeypot'
+	list dest_ip '192.168.0.0/16'
+	option target 'REJECT'
+	option log '1'
+	option log_limit '10/minute'
+	option enabled '1'

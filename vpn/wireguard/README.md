@@ -48,7 +48,7 @@ nano /etc/config/network
 # Find the VPN interface section and add the private key:
 config interface 'vpn'
     option proto 'wireguard'
-    option private_key 'PASTE_SERVER_PRIVATE_KEY_HERE'
+    option private_key 'PASTE_SERVER_PRIVATE_KEY_HERE' UImpJI5M8dci62Jyb0Y0aJkKz2CFhNxX+q40OmATj1s=
     option listen_port '51820'
     list addresses '10.10.100.1/24'
 
@@ -71,7 +71,8 @@ On your laptop (Linux/Mac):
 # Windows: Download from wireguard.com
 
 # Generate keys
-wg genkey | tee laptop_private.key | wg pubkey > laptop_public.key
+§
+
 
 # View public key (needed for server config)
 cat laptop_public.key

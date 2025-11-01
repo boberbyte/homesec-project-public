@@ -1,0 +1,22 @@
+{
+  "type": "dashboard",
+  "id": "template-dashboard",
+  "attributes": {
+    "title": "Dashboard Template",
+    "description": "Template for creating new HomeSec dashboards",
+    "version": 1,
+    "timeRestore": true,
+    "refreshInterval": {
+      "pause": false,
+      "value": 60000
+    },
+    "timeFrom": "now-24h",
+    "timeTo": "now",
+    "panelsJSON": "[]",
+    "optionsJSON": "{}",
+    "kibanaSavedObjectMeta": {
+      "searchSourceJSON": "{\"query\":{\"language\":\"kuery\",\"query\":\"\"},\"filter\":[]}"
+    }
+  },
+  "references": []
+}

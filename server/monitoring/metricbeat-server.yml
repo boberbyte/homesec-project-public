@@ -1,0 +1,178 @@
+# Metricbeat Configuration for HomeSec CentOS Server
+# Collects system and application metrics and ships to Elasticsearch
+
+#================================ Metricbeat Modules ==============================
+
+metricbeat.config.modules:
+  path: ${path.config}/modules.d/*.yml
+  reload.enabled: true
+  reload.period: 10s
+
+#================================ Modules =========================================
+
+metricbeat.modules:
+
+#------------------------------- System Module --------------------------------
+- module: system
+  period: 10s
+  metricsets:
+    - cpu             # CPU usage
+    - load            # System load
+    - memory          # Memory usage
+    - network         # Network I/O
+    - process         # Process stats
+    - process_summary # Process summary
+    - socket_summary  # Socket summary
+    - filesystem      # Disk usage
+    - fsstat          # Filesystem stats
+    - diskio          # Disk I/O
+    - uptime          # System uptime
+
+  enabled: true
+
+  # Which processes to monitor
+  process.include_top_n:
+    by_cpu: 10
+    by_memory: 10
+
+  # CPU metrics per core
+  cpu.metrics: ["percentages", "normalized_percentages"]
+
+  # Additional process information
+  process.cmdline.cache.enabled: true
+  process.cgroups.enabled: true
+  process.env.whitelist: ["PATH"]
+
+  # Filesystem filters
+  filesystem.ignore_types: ["tmpfs", "devtmpfs", "devfs"]
+
+#------------------------------- Docker Module --------------------------------
+- module: docker
+  period: 10s
+  hosts: ["unix:///var/run/docker.sock"]
+  metricsets:
+    - container
+    - cpu
+    - diskio
+    - healthcheck
+    - info
+    - memory
+    - network
+  enabled: true
+
+#------------------------------- Elasticsearch Module -------------------------
+- module: elasticsearch
+  period: 10s
+  hosts: ["http://localhost:9200"]
+  metricsets:
+    - node
+    - node_stats
+    - cluster_stats
+    - index
+    - index_summary
+    - shard
+  enabled: true
+
+  # X-Pack metrics (if using X-Pack)
+  # xpack.enabled: true
+
+#------------------------------- Kibana Module --------------------------------
+- module: kibana
+  period: 10s
+  hosts: ["http://localhost:443"]
+  metricsets:
+    - stats
+    - status
+  enabled: true
+
+#================================ Processors ======================================
+
+processors:
+  # Add host metadata
+  - add_host_metadata:
+      geo:
+        name: HomeSec-Server
+        location: "VLAN 20"
+
+  # Add Docker metadata
+  - add_docker_metadata:
+      host: "unix:///var/run/docker.sock"
+
+  # Add fields
+  - add_fields:
+      target: ''
+      fields:
+        source: homesec-server
+        environment: production
+        location: vlan20
+
+#================================ Outputs =========================================
+
+# Output to Elasticsearch
+output.elasticsearch:
+  hosts: ["localhost:9200"]
+  index: "homesec-metrics-%{+yyyy.MM.dd}"
+
+  # Bulk settings
+  bulk_max_size: 1024
+  worker: 2
+
+  # Compression
+  compression_level: 1
+
+#================================ Index Template ==================================
+
+setup.template.name: "homesec-metrics"
+setup.template.pattern: "homesec-metrics-*"
+setup.template.enabled: true
+setup.template.overwrite: false
+
+setup.template.settings:
+  index.number_of_shards: 1
+  index.number_of_replicas: 0
+  index.codec: best_compression
+
+#================================ ILM =============================================
+
+setup.ilm.enabled: true
+setup.ilm.rollover_alias: "homesec-metrics"
+setup.ilm.pattern: "{now/d}-000001"
+setup.ilm.policy_name: "homesec-metrics-ilm-policy"
+
+#================================ Kibana ==========================================
+
+setup.kibana:
+  host: "localhost:443"
+  protocol: "http"
+
+#================================ Dashboards ======================================
+
+# Load Kibana dashboards
+setup.dashboards.enabled: true
+setup.dashboards.retry.enabled: true
+setup.dashboards.retry.interval: 5s
+setup.dashboards.retry.maximum: 5
+
+#================================ Logging =========================================
+
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/metricbeat
+  name: metricbeat
+  keepfiles: 7
+  permissions: 0644
+
+#================================ Monitoring ======================================
+
+# Internal monitoring
+monitoring.enabled: true
+monitoring.elasticsearch:
+  hosts: ["localhost:9200"]
+
+#================================ HTTP Endpoint ===================================
+
+# HTTP endpoint for health checks
+http.enabled: true
+http.host: localhost
+http.port: 5066

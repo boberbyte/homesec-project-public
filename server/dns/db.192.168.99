@@ -1,0 +1,26 @@
+; Reverse Zone File for VLAN 99 (Honeypot DMZ)
+; Zone: 99.168.192.in-addr.arpa
+; Network: 192.168.99.0/24
+
+$TTL    86400
+@       IN      SOA     dns.homesec.local. admin.homesec.local. (
+                        2024011501  ; Serial
+                        3600        ; Refresh
+                        1800        ; Retry
+                        604800      ; Expire
+                        86400       ; Minimum TTL
+                        )
+
+@       IN      NS      dns.homesec.local.
+
+; PTR Records for Honeypot network
+10      IN      PTR     honeypot.homesec.local.
+10      IN      PTR     tpot.homesec.local.
+
+; Note: This VLAN is completely isolated except for:
+; - Internet access (all ports)
+; - DNS (to this server)
+; - Elasticsearch logging (to 192.168.20.10:9200)
+;
+; All DNS queries from this VLAN are logged and monitored
+; for security analysis in Kibana.

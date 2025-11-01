@@ -2,7 +2,13 @@
   "permissions": {
     "allow": [
       "Bash(mkdir:*)",
-      "Bash(tree:*)"
+      "Bash(tree:*)",
+      "Bash(for dir in server/dns server/nas server/backup server/monitoring network/hp-switch firewall/openwrt-rules firewall/tpot-isolation scripts/maintenance dashboards/kibana dashboards/templates vpn/headscale ids-ips/rockpi4-ids)",
+      "Bash(do echo '=== $dir ===')",
+      "Bash(ls:*)",
+      "Bash(done)",
+      "Bash(find:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

@@ -1,3 +1,36 @@
 .claude
 CLAUDE.MD
 
+# macOS files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Thumbnails
+._*
+
+# Linux backup files
+*~
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+
+# Sensitive files (never commit)
+*.key
+*.pem
+*_rsa
+*_rsa.pub
+.env
+*.env
+credentials.*
+secrets.*
+
+# WireGuard private keys
+*.conf
+!*template.conf
+
+# Logs
+*.log
+

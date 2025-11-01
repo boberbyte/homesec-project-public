@@ -1,0 +1,20 @@
+; Reverse Zone File for VLAN 40 (Lab VMs)
+; Zone: 40.168.192.in-addr.arpa
+; Network: 192.168.40.0/24
+
+$TTL    86400
+@       IN      SOA     dns.homesec.local. admin.homesec.local. (
+                        2024011501  ; Serial
+                        3600        ; Refresh
+                        1800        ; Retry
+                        604800      ; Expire
+                        86400       ; Minimum TTL
+                        )
+
+@       IN      NS      dns.homesec.local.
+
+; PTR Records for Lab VMs
+; Example:
+; 10    IN      PTR     vm-test.homesec.local.
+; 11    IN      PTR     vm-dev.homesec.local.
+; 12    IN      PTR     vm-staging.homesec.local.

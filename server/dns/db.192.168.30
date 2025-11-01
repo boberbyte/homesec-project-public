@@ -1,0 +1,18 @@
+; Reverse Zone File for VLAN 30 (IoT/Guest)
+; Zone: 30.168.192.in-addr.arpa
+; Network: 192.168.30.0/24
+
+$TTL    86400
+@       IN      SOA     dns.homesec.local. admin.homesec.local. (
+                        2024011501  ; Serial
+                        3600        ; Refresh
+                        1800        ; Retry
+                        604800      ; Expire
+                        86400       ; Minimum TTL
+                        )
+
+@       IN      NS      dns.homesec.local.
+
+; PTR Records for IoT/Guest devices
+; This VLAN is isolated - devices get DHCP but minimal access
+; Add devices as needed

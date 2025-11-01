@@ -1,0 +1,56 @@
+; HomeSec Internal Zone File
+; Zone: homesec.local
+; Purpose: Internal DNS resolution for HomeSec infrastructure
+
+$TTL    86400
+@       IN      SOA     dns.homesec.local. admin.homesec.local. (
+                        2024011501  ; Serial (YYYYMMDDNN)
+                        3600        ; Refresh (1 hour)
+                        1800        ; Retry (30 minutes)
+                        604800      ; Expire (1 week)
+                        86400       ; Minimum TTL (1 day)
+                        )
+
+; Name servers
+@       IN      NS      dns.homesec.local.
+
+; A Records - Infrastructure (VLAN 20 - 192.168.20.0/24)
+router          IN      A       192.168.20.1
+server          IN      A       192.168.20.10
+switch          IN      A       192.168.20.11
+ids             IN      A       192.168.20.20
+dns             IN      A       192.168.20.53
+
+; Aliases for server services
+elasticsearch   IN      CNAME   server
+kibana          IN      CNAME   server
+elk             IN      CNAME   server
+nas             IN      CNAME   server
+backup          IN      CNAME   server
+
+; A Records - Trusted Devices (VLAN 10 - 192.168.10.0/24)
+; Add your trusted devices here
+; Example:
+; laptop         IN      A       192.168.10.100
+; desktop        IN      A       192.168.10.101
+
+; A Records - Lab VMs (VLAN 40 - 192.168.40.0/24)
+; vm-test        IN      A       192.168.40.10
+; vm-dev         IN      A       192.168.40.11
+
+; A Records - Honeypot (VLAN 99 - 192.168.99.0/24)
+honeypot        IN      A       192.168.99.10
+tpot           IN      A       192.168.99.10
+
+; WiFi Access Points (if managed)
+; ap1            IN      A       192.168.10.201
+; ap2            IN      A       192.168.10.202
+; ap3            IN      A       192.168.10.203
+
+; VPN Clients (WireGuard)
+; vpn-laptop     IN      A       192.168.20.2
+; vpn-phone      IN      A       192.168.20.3
+
+; TXT Records (for verification, monitoring)
+@       IN      TXT     "HomeSec Internal Network"
+@       IN      TXT     "v=spf1 -all"  ; No mail from this domain

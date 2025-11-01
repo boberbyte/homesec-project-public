@@ -1,0 +1,78 @@
+# HomeSec NFS Exports Configuration
+# /etc/exports
+#
+# Provides NFS file sharing for Linux/Unix clients
+#
+# Export format:
+# directory  client(options)
+#
+# Common options:
+#   rw             - Read-write access
+#   ro             - Read-only access
+#   sync           - Synchronous writes (safer but slower)
+#   async          - Asynchronous writes (faster but less safe)
+#   no_root_squash - Allow root user from client
+#   root_squash    - Map root user to nobody (default, safer)
+#   no_subtree_check - Disable subtree checking (better performance)
+#   secure         - Require connections from port < 1024
+
+#======================= Shared Files =======================
+
+# Shared directory - VLAN 10 (Trusted) and VLAN 20 (Infrastructure)
+/mnt/storage/shared     192.168.10.0/24(rw,sync,no_subtree_check) 192.168.20.0/24(rw,sync,no_subtree_check)
+
+#======================= Backups =======================
+
+# Backups directory - VLAN 20 only (Infrastructure)
+# Rock Pi 4 SE IDS can write backups here
+/mnt/storage/backups    192.168.20.0/24(rw,sync,no_root_squash,no_subtree_check)
+
+# Specific access for Rock Pi 4 SE
+/mnt/storage/backups    192.168.20.20(rw,sync,no_root_squash,no_subtree_check)
+
+#======================= Logs Archive =======================
+
+# Logs archive - VLAN 20 only
+# Rock Pi devices and server can archive logs here
+/mnt/storage/logs       192.168.20.0/24(rw,sync,no_subtree_check)
+
+#======================= Documents =======================
+
+# Documents - VLAN 10 and VLAN 20
+/mnt/storage/documents  192.168.10.0/24(rw,sync,no_subtree_check) 192.168.20.0/24(rw,sync,no_subtree_check)
+
+#======================= Media Files =======================
+
+# Media - VLAN 10 (rw), VLAN 20 (rw), VLAN 30 (ro)
+/mnt/storage/media      192.168.10.0/24(rw,sync,no_subtree_check)
+/mnt/storage/media      192.168.20.0/24(rw,sync,no_subtree_check)
+/mnt/storage/media      192.168.30.0/24(ro,sync,no_subtree_check)
+
+#======================= Elasticsearch Snapshots =======================
+
+# Elasticsearch snapshot repository
+# Only accessible from server itself
+/mnt/storage/backups/elasticsearch  192.168.20.10(rw,sync,no_root_squash,no_subtree_check)
+
+#======================= VM Storage (Optional) =======================
+
+# VM images and backups - VLAN 20 only
+# /mnt/storage/backups/vm  192.168.20.0/24(rw,sync,no_root_squash,no_subtree_check)
+
+#======================= Notes =======================
+
+# Security considerations:
+# - Only internal VLANs have access
+# - Firewall restricts NFS to internal networks only
+# - Use no_root_squash only where necessary (backups, system operations)
+# - Sync mode ensures data integrity but reduces performance
+# - For better performance, consider async mode (with UPS backup)
+
+# To apply changes after editing:
+# sudo exportfs -ra
+
+# To verify exports:
+# sudo exportfs -v
+
+# To test from client:
+# showmount -e 192.168.20.10

@@ -1,0 +1,22 @@
+; Reverse Zone File for VLAN 10 (Trusted Devices)
+; Zone: 10.168.192.in-addr.arpa
+; Network: 192.168.10.0/24
+
+$TTL    86400
+@       IN      SOA     dns.homesec.local. admin.homesec.local. (
+                        2024011501  ; Serial
+                        3600        ; Refresh
+                        1800        ; Retry
+                        604800      ; Expire
+                        86400       ; Minimum TTL
+                        )
+
+@       IN      NS      dns.homesec.local.
+
+; PTR Records for Trusted Devices
+; Add your devices here
+; Example:
+; 100   IN      PTR     laptop.homesec.local.
+; 101   IN      PTR     desktop.homesec.local.
+; 201   IN      PTR     ap1.homesec.local.
+; 202   IN      PTR     ap2.homesec.local.

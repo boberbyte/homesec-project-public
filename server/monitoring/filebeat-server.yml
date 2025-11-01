@@ -1,0 +1,173 @@
+# Filebeat Configuration for HomeSec CentOS Server
+# Collects logs from the main server and ships to Elasticsearch
+
+#================================ Filebeat Inputs =================================
+
+filebeat.inputs:
+
+# System logs
+- type: log
+  enabled: true
+  paths:
+    - /var/log/messages
+    - /var/log/secure
+    - /var/log/cron
+  fields:
+    log_type: system
+    source: homesec-server
+    component: system
+  fields_under_root: false
+
+# Elasticsearch logs
+- type: log
+  enabled: true
+  paths:
+    - /var/lib/containers/storage/volumes/elasticsearch-logs/_data/*.log
+  json.keys_under_root: true
+  json.add_error_key: true
+  json.overwrite_keys: true
+  fields:
+    log_type: elasticsearch
+    source: homesec-server
+    component: elasticsearch
+  fields_under_root: false
+  multiline.pattern: '^\['
+  multiline.negate: true
+  multiline.match: after
+
+# Kibana logs
+- type: log
+  enabled: true
+  paths:
+    - /var/lib/containers/storage/volumes/kibana-logs/_data/*.log
+  json.keys_under_root: false
+  fields:
+    log_type: kibana
+    source: homesec-server
+    component: kibana
+  fields_under_root: false
+
+# Podman container logs
+- type: container
+  enabled: true
+  paths:
+    - /var/lib/containers/storage/overlay-containers/*/userdata/ctr.log
+  fields:
+    log_type: container
+    source: homesec-server
+    component: podman
+  fields_under_root: false
+
+#================================ Filebeat Modules ================================
+
+filebeat.config.modules:
+  path: ${path.config}/modules.d/*.yml
+  reload.enabled: true
+  reload.period: 10s
+
+#================================ Processors ======================================
+
+processors:
+  # Add host metadata (hostname, IP, OS)
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+      geo:
+        name: HomeSec-Server
+        location: "VLAN 20"
+
+  # Add cloud metadata (if running in cloud - disabled for bare metal)
+  # - add_cloud_metadata: ~
+
+  # Add Docker metadata
+  - add_docker_metadata:
+      host: "unix:///var/run/docker.sock"
+      match_source: true
+      match_source_index: 4
+
+  # Drop debug/trace level logs to reduce volume (optional)
+  - drop_event:
+      when:
+        regexp:
+          message: '(DEBUG|TRACE)'
+
+  # Rename fields for consistency
+  - rename:
+      fields:
+        - from: "host.name"
+          to: "server.hostname"
+      ignore_missing: true
+      fail_on_error: false
+
+#================================ Outputs =========================================
+
+# Output to Elasticsearch
+output.elasticsearch:
+  hosts: ["localhost:9200"]
+  index: "homesec-server-%{+yyyy.MM.dd}"
+
+  # Bulk settings for performance
+  bulk_max_size: 1024
+  worker: 2
+
+  # Compression
+  compression_level: 1
+
+# Alternative: Output to Logstash (if using Logstash for parsing)
+# output.logstash:
+#   hosts: ["localhost:5044"]
+#   compression_level: 3
+
+#================================ Index Template ==================================
+
+setup.template.name: "homesec-server"
+setup.template.pattern: "homesec-server-*"
+setup.template.enabled: true
+setup.template.overwrite: false
+
+setup.template.settings:
+  index.number_of_shards: 1
+  index.number_of_replicas: 0
+  index.codec: best_compression
+
+#================================ ILM =============================================
+
+# Index Lifecycle Management
+setup.ilm.enabled: true
+setup.ilm.rollover_alias: "homesec-server"
+setup.ilm.pattern: "{now/d}-000001"
+setup.ilm.policy_name: "homesec-ilm-policy"
+
+#================================ Kibana ==========================================
+
+setup.kibana:
+  host: "localhost:443"
+  protocol: "http"
+
+#================================ Logging =========================================
+
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644
+
+#================================ Queue ===========================================
+
+queue.mem:
+  events: 4096
+  flush.min_events: 2048
+  flush.timeout: 1s
+
+#================================ Monitoring ======================================
+
+# Internal monitoring (sends Filebeat metrics to Elasticsearch)
+monitoring.enabled: true
+monitoring.elasticsearch:
+  hosts: ["localhost:9200"]
+
+# X-Pack monitoring (if using X-Pack)
+# xpack.monitoring.enabled: true
+# xpack.monitoring.elasticsearch:
+#   hosts: ["localhost:9200"]
