@@ -8,7 +8,8 @@
       "Bash(ls:*)",
       "Bash(done)",
       "Bash(find:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nComplete HomeSec project with all components and documentation\n\nAdded comprehensive configurations and documentation for all HomeSec components:\n\n## Infrastructure Components\n- Rock Pi 4 SE IDS: Complete setup guide with Filebeat/Metricbeat integration\n- DNS Server (BIND): Configuration for all VLANs with zone files\n- NAS (Samba/NFS): Network storage with RAID and LVM setup\n- Backup System: Automated backup scripts with retention management\n\n## Monitoring & Logging\n- Filebeat/Metricbeat: Configurations for server and OpenWrt\n- Kibana Dashboards: Templates and visualization examples\n- Health Check: Automated system health monitoring\n\n## Security\n- T-Pot Honeypot Isolation: Complete firewall isolation rules\n- OpenWrt Firewall: Detailed VLAN isolation and forwarding rules\n- Security Audit: Automated security audit script\n\n## Maintenance\n- Backup scripts: System, Elasticsearch, LVM snapshots\n- Health check script: Automated component monitoring\n- Suricata rule updates: Automated IDS/IPS rule management\n\n## Documentation\n- Complete README files for all components\n- Installation guides and troubleshooting\n- Configuration examples and best practices\n\n## Cleanup\n- Removed .DS_Store files\n- Updated .gitignore with comprehensive exclusions\n- Organized project structure\n\n🤖 Generated with Claude Code\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []
